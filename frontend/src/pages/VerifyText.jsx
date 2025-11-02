@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Bot, User } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
 
 const VerifyText = () => {
   const [input, setInput] = useState("");
@@ -112,9 +115,11 @@ const VerifyText = () => {
                     <strong className="text-gray-300">Confidence:</strong>{" "}
                     {msg.content.confidence}
                   </p>
-                  <p className="mt-2 text-gray-200">
-                    {msg.content.explanation}
-                  </p>
+                  <div className="mt-2 text-gray-200 leading-relaxed prose prose-invert max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {msg.content.explanation}
+                    </ReactMarkdown>
+                  </div>
                 </>
               ) : (
                 <p>{msg.content}</p>
