@@ -1,6 +1,8 @@
-backend/venv/
+Text/backend/venv/
 __pycache__/
 *.pyc
 .idea/
 .vscode/
 *.env
+Image/FakeShield
+Text/ARG
