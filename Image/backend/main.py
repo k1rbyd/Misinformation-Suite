@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from PIL import Image
@@ -7,10 +7,15 @@ import numpy as np
 import cv2
 import math
 import base64
+import torch
+import os
+
+# Import the PyTorch-based ManTraNet
+from models.mantranet_torch import ManTraNetTorch
 
 app = FastAPI()
 
-# Enable CORS (so frontend React app can connect)
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,8 +24,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Load ManTraNet (PyTorch)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+mantranet_model = ManTraNetTorch(device=device)
+
+# ---------- Utility functions ----------
 
 def image_from_uploadfile(upload_file: UploadFile) -> Image.Image:
+    """Convert UploadFile -> PIL image"""
     contents = upload_file.file.read()
     return Image.open(io.BytesIO(contents)).convert("RGB")
 
@@ -74,55 +85,71 @@ def compute_score(ela_mean, ela_std, edge_dens, chroma_anom):
     return max(0.0, min(1.0, score))
 
 
-def generate_heatmap(pil_img: Image.Image, ela_gray: np.ndarray) -> str:
-    """
-    Generate a simple tampering heatmap using ELA intensity + edges.
-    Returns a base64-encoded PNG data URL.
-    """
+def generate_basic_heatmap(pil_img: Image.Image, ela_gray: np.ndarray) -> str:
+    """Basic heatmap: ELA + edges"""
     img = np.asarray(pil_img)
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-
-    # Edge detection
     edges = cv2.Canny(gray, 100, 200)
     edges = cv2.GaussianBlur(edges, (5, 5), 0)
-
-    # Normalize ELA map
     ela_norm = cv2.normalize(ela_gray, None, 0, 255, cv2.NORM_MINMAX)
-
-    # Combine ELA + edges
     combined = cv2.addWeighted(ela_norm.astype(np.float32), 0.7, edges.astype(np.float32), 0.3, 0)
     combined = cv2.GaussianBlur(combined, (3, 3), 0)
-
-    # Convert to color heatmap
     heatmap = cv2.applyColorMap(combined.astype(np.uint8), cv2.COLORMAP_JET)
     overlay = cv2.addWeighted(img, 0.6, heatmap, 0.8, 0)
-
-    # Encode as base64 PNG
     _, buffer = cv2.imencode(".png", cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
     heatmap_b64 = base64.b64encode(buffer).decode("utf-8")
     return f"data:image/png;base64,{heatmap_b64}"
 
 
+def generate_advanced_heatmap(pil_img: Image.Image) -> str:
+    """Advanced heatmap: PyTorch ManTraNet"""
+    try:
+        # Save temp image
+        temp_path = "temp_input.png"
+        pil_img.save(temp_path)
+        heatmap = mantranet_model.predict_heatmap(temp_path)
+        os.remove(temp_path)
+
+        # Encode to base64
+        _, buffer = cv2.imencode(".png", cv2.cvtColor(heatmap, cv2.COLOR_RGB2BGR))
+        return f"data:image/png;base64,{base64.b64encode(buffer).decode('utf-8')}"
+    except Exception as e:
+        print(f"[Advanced Heatmap Error] {e}")
+        return None
+
+
+# ---------- API ----------
+
 @app.post("/analyze")
-async def analyze_image(file: UploadFile = File(...)):
+async def analyze_image(file: UploadFile = File(...), mode: str = Query("basic", enum=["basic", "advanced"])):
+    """
+    mode: "basic" (default ELA-based heatmap)
+          "advanced" (ManTraNet PyTorch localization)
+    """
     try:
         pil_img = image_from_uploadfile(file)
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Invalid image: {e}"})
 
-    # Compute all features
+    # Compute features
     ela_img, ela_mean, ela_std = error_level_analysis(pil_img)
     edge_d = edge_density(pil_img)
     chroma = chroma_anomaly_score(pil_img)
     score = compute_score(ela_mean, ela_std, edge_d, chroma)
     label = "Real" if score >= 0.5 else "Fake"
 
-    # Generate heatmap visualization
-    heatmap_url = generate_heatmap(pil_img, ela_img)
+    # Generate heatmap based on mode
+    if mode == "advanced":
+        heatmap_url = generate_advanced_heatmap(pil_img)
+        if heatmap_url is None:
+            heatmap_url = generate_basic_heatmap(pil_img, ela_img)
+    else:
+        heatmap_url = generate_basic_heatmap(pil_img, ela_img)
 
     return {
         "score": round(score, 4),
         "label": label,
+        "mode": mode,
         "features": {
             "ela_mean": round(ela_mean, 4),
             "ela_std": round(ela_std, 4),
@@ -135,7 +162,7 @@ async def analyze_image(file: UploadFile = File(...)):
 
 @app.get("/")
 def root():
-    return {"message": "Fake Image Detector API is live"}
+    return {"message": "Fake Image Detector API (Basic + Advanced PyTorch) is live"}
 
 
 if __name__ == "__main__":
