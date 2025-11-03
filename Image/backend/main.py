@@ -6,6 +6,7 @@ import io
 import numpy as np
 import cv2
 import math
+import base64
 
 app = FastAPI()
 
@@ -73,6 +74,35 @@ def compute_score(ela_mean, ela_std, edge_dens, chroma_anom):
     return max(0.0, min(1.0, score))
 
 
+def generate_heatmap(pil_img: Image.Image, ela_gray: np.ndarray) -> str:
+    """
+    Generate a simple tampering heatmap using ELA intensity + edges.
+    Returns a base64-encoded PNG data URL.
+    """
+    img = np.asarray(pil_img)
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
+    # Edge detection
+    edges = cv2.Canny(gray, 100, 200)
+    edges = cv2.GaussianBlur(edges, (5, 5), 0)
+
+    # Normalize ELA map
+    ela_norm = cv2.normalize(ela_gray, None, 0, 255, cv2.NORM_MINMAX)
+
+    # Combine ELA + edges
+    combined = cv2.addWeighted(ela_norm.astype(np.float32), 0.7, edges.astype(np.float32), 0.3, 0)
+    combined = cv2.GaussianBlur(combined, (3, 3), 0)
+
+    # Convert to color heatmap
+    heatmap = cv2.applyColorMap(combined.astype(np.uint8), cv2.COLORMAP_JET)
+    overlay = cv2.addWeighted(img, 0.6, heatmap, 0.8, 0)
+
+    # Encode as base64 PNG
+    _, buffer = cv2.imencode(".png", cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
+    heatmap_b64 = base64.b64encode(buffer).decode("utf-8")
+    return f"data:image/png;base64,{heatmap_b64}"
+
+
 @app.post("/analyze")
 async def analyze_image(file: UploadFile = File(...)):
     try:
@@ -80,12 +110,15 @@ async def analyze_image(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"Invalid image: {e}"})
 
+    # Compute all features
     ela_img, ela_mean, ela_std = error_level_analysis(pil_img)
     edge_d = edge_density(pil_img)
     chroma = chroma_anomaly_score(pil_img)
     score = compute_score(ela_mean, ela_std, edge_d, chroma)
+    label = "Real" if score >= 0.5 else "Fake"
 
-    label = "Real" if score >= 0.6 else "Fake"
+    # Generate heatmap visualization
+    heatmap_url = generate_heatmap(pil_img, ela_img)
 
     return {
         "score": round(score, 4),
@@ -96,6 +129,7 @@ async def analyze_image(file: UploadFile = File(...)):
             "edge_density": round(edge_d, 4),
             "chroma_anomaly": round(chroma, 4),
         },
+        "heatmap": heatmap_url,
     }
 
 

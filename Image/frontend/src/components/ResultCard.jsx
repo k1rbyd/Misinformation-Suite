@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Radar,
@@ -10,7 +10,8 @@ import {
 } from "recharts";
 
 const ResultCard = ({ file, result }) => {
-  const { score, label } = result;
+  const { score, label, heatmap } = result;
+  const [showHeatmap, setShowHeatmap] = useState(false);
 
   const fakeScore = (1 - score) * 100;
   const realScore = score * 100;
@@ -29,14 +30,15 @@ const ResultCard = ({ file, result }) => {
 
   return (
     <motion.div
-      className="w-full flex flex-col md:flex-row justify-center items-start gap-12 px-12 py-16"
+      className="w-full flex flex-col md:flex-row justify-center items-center gap-16 px-12 py-20"
       initial={{ opacity: 0, y: 40 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6 }}
     >
       {/* Left: Image + Confidence Bars */}
       <div className="flex flex-col items-center space-y-6 md:w-1/2 w-full">
-        <div className="relative">
+        <div className="relative flex justify-center">
+          {/* Uploaded Image */}
           {uploadedImage && (
             <motion.img
               src={uploadedImage}
@@ -47,15 +49,42 @@ const ResultCard = ({ file, result }) => {
               transition={{ duration: 0.5 }}
             />
           )}
+
+          {/* Heatmap Overlay */}
+          {showHeatmap && heatmap && (
+            <motion.img
+              src={heatmap}
+              alt="Heatmap"
+              className="absolute top-0 left-0 w-[24rem] h-[24rem] object-cover rounded-2xl mix-blend-screen opacity-80 border border-indigo-400/40"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.4 }}
+            />
+          )}
+
+          {/* Label Tag */}
           <div className="absolute bottom-3 right-3 bg-gray-800/80 text-xs px-3 py-1 rounded-full border border-gray-700 text-gray-300">
             {label === "Real" ? "🟢 Real" : "🔴 Fake"}
           </div>
         </div>
 
+        {/* Toggle Heatmap Button */}
+        {heatmap && (
+          <motion.button
+            onClick={() => setShowHeatmap((prev) => !prev)}
+            className="mt-3 px-5 py-2 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 transition-colors duration-200 shadow-md border border-indigo-400"
+            whileTap={{ scale: 0.95 }}
+          >
+            {showHeatmap ? "Hide Heatmap 🔥" : "Show Heatmap 🔍"}
+          </motion.button>
+        )}
+
         {/* Confidence Bars */}
-        <div className="w-[20rem] space-y-2">
-          <p className="text-gray-300 text-sm font-medium">Confidence Levels</p>
-          <div className="flex flex-col space-y-2">
+        <div className="w-[20rem] space-y-3">
+          <p className="text-gray-300 text-sm font-medium text-center">
+            Confidence Levels
+          </p>
+          <div className="flex flex-col space-y-3">
             <div>
               <p className="text-xs text-green-400 mb-1">
                 Real ({realScore.toFixed(1)}%)
@@ -88,7 +117,7 @@ const ResultCard = ({ file, result }) => {
 
       {/* Right: Radar Chart + Metrics */}
       <motion.div
-        className="flex flex-col items-center justify-start space-y-8 md:w-1/2 w-full"
+        className="flex flex-col items-center justify-center space-y-10 md:w-1/2 w-full"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.3 }}
@@ -97,14 +126,19 @@ const ResultCard = ({ file, result }) => {
           🧠 Detection Confidence Radar
         </h2>
 
-        <div className="relative w-[360px] h-[360px] bg-gray-800/50 rounded-2xl border border-gray-700 shadow-inner p-4">
+        <div className="relative w-[360px] h-[360px] bg-gray-800/50 rounded-2xl border border-gray-700 shadow-inner p-6 flex items-center justify-center mx-auto">
           <ResponsiveContainer width="100%" height="100%">
-            <RadarChart cx="50%" cy="50%" outerRadius="65%" data={radarData}>
+            <RadarChart
+              cx="50%"
+              cy="50%"
+              outerRadius="75%"
+              data={radarData}
+              margin={{ top: 40, bottom: 40, left: 20, right: 20 }}
+            >
               <PolarGrid stroke="#555" />
-
               <PolarAngleAxis
                 dataKey="metric"
-                tick={({ payload, x, y, textAnchor }) => (
+                tick={({ payload, x, y }) => (
                   <text
                     x={x}
                     y={y}
@@ -113,19 +147,12 @@ const ResultCard = ({ file, result }) => {
                     fontSize={11}
                     fontFamily="Inter, sans-serif"
                     dy={5}
-                    style={{ pointerEvents: "none" }}
                   >
-                    {payload.value.split(" ").map((line, index) => (
-                      <tspan key={index} x={x} dy={index === 0 ? 0 : 12}>
-                        {line}
-                      </tspan>
-                    ))}
+                    {payload.value}
                   </text>
                 )}
               />
-
               <PolarRadiusAxis tick={false} axisLine={false} />
-
               <Radar
                 name="Tampering Confidence"
                 dataKey="confidence"
@@ -133,7 +160,6 @@ const ResultCard = ({ file, result }) => {
                 fill="url(#colorGradient)"
                 fillOpacity={0.6}
               />
-
               <defs>
                 <linearGradient id="colorGradient" x1="0" y1="0" x2="1" y2="1">
                   <stop offset="0%" stopColor="#6366F1" />
