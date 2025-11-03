@@ -5,13 +5,21 @@ import { useAnalyzer } from "../hooks/useAnalyzer";
 import LoadingSpinner from "./LoadingSpinner";
 import ResultCard from "./ResultCard";
 
-
 const UploadForm = () => {
   const { file, result, loading, error, handleFileChange, handleAnalyze } =
     useAnalyzer();
 
+  const hasResult = !!result;
+
   return (
-    <div className="flex flex-col items-center justify-center w-full p-6 bg-gradient-to-br from-slate-900 via-gray-900 to-black min-h-screen text-white">
+    <div
+      className={`flex flex-col items-center justify-center w-full min-h-screen 
+      bg-gradient-to-br from-slate-950 via-gray-900 to-black text-white 
+      transition-all duration-300 ${
+        hasResult ? "overflow-y-auto py-10" : "overflow-hidden"
+      }`}
+    >
+      {/* Title */}
       <motion.h1
         className="text-4xl font-bold mb-10 bg-gradient-to-r from-indigo-400 to-cyan-400 text-transparent bg-clip-text"
         initial={{ opacity: 0, y: -20 }}
@@ -31,12 +39,16 @@ const UploadForm = () => {
             type="file"
             accept="image/*"
             onChange={handleFileChange}
-            className="block w-full text-sm text-gray-300 border border-gray-700 rounded-lg cursor-pointer bg-gray-900 hover:bg-gray-800 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700"
+            className="block w-full text-sm text-gray-300 border border-gray-700 rounded-lg cursor-pointer bg-gray-900 hover:bg-gray-800 
+              file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 
+              file:text-sm file:font-semibold file:bg-indigo-600 file:text-white 
+              hover:file:bg-indigo-700"
           />
           <button
             onClick={handleAnalyze}
             disabled={loading}
-            className="px-6 py-2 rounded-full bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-600 text-white font-medium transition-all"
+            className="px-6 py-2 rounded-full bg-indigo-500 hover:bg-indigo-600 
+              disabled:bg-gray-600 text-white font-medium transition-all"
           >
             {loading ? "Analyzing..." : "Upload & Analyze"}
           </button>
@@ -48,7 +60,7 @@ const UploadForm = () => {
       </motion.div>
 
       {/* Result / Loading */}
-      <div className="mt-10 w-full max-w-6xl flex flex-col items-center">
+      <div className="mt-10 w-full max-w-6xl flex flex-col items-center mb-10">
         {loading ? (
           <LoadingSpinner />
         ) : result ? (
@@ -60,8 +72,6 @@ const UploadForm = () => {
           >
             {/* Image + result */}
             <ResultCard file={file} result={result} />
-
-          
           </motion.div>
         ) : null}
       </div>
