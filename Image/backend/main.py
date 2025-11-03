@@ -101,21 +101,38 @@ def generate_basic_heatmap(pil_img: Image.Image, ela_gray: np.ndarray) -> str:
     return f"data:image/png;base64,{heatmap_b64}"
 
 
-def generate_advanced_heatmap(pil_img: Image.Image) -> str:
-    """Advanced heatmap: PyTorch ManTraNet"""
+def generate_advanced_heatmap(pil_img: Image.Image):
+    """Advanced heatmap: PyTorch ManTraNet + metrics"""
     try:
-        # Save temp image
         temp_path = "temp_input.png"
         pil_img.save(temp_path)
+
+        # Predict with ManTraNet
         heatmap = mantranet_model.predict_heatmap(temp_path)
         os.remove(temp_path)
 
-        # Encode to base64
+        # --- Metrics ---
+        ela_img, ela_mean, ela_std = error_level_analysis(pil_img)
+        edge_d = edge_density(pil_img)
+        chroma = chroma_anomaly_score(pil_img)
+        score = compute_score(ela_mean, ela_std, edge_d, chroma)
+
+        metrics = {
+            "ELA Mean": round(ela_mean, 4),
+            "ELA StdDev": round(ela_std, 4),
+            "Edge Density": round(edge_d, 4),
+            "Chroma Anomaly": round(chroma, 4),
+            "Tamper Confidence": round(score, 4),
+        }
+
+        # Encode heatmap to base64
         _, buffer = cv2.imencode(".png", cv2.cvtColor(heatmap, cv2.COLOR_RGB2BGR))
-        return f"data:image/png;base64,{base64.b64encode(buffer).decode('utf-8')}"
+        heatmap_b64 = base64.b64encode(buffer).decode("utf-8")
+
+        return f"data:image/png;base64,{heatmap_b64}", metrics
     except Exception as e:
         print(f"[Advanced Heatmap Error] {e}")
-        return None
+        return None, {}
 
 
 # ---------- API ----------
@@ -138,25 +155,29 @@ async def analyze_image(file: UploadFile = File(...), mode: str = Query("basic",
     score = compute_score(ela_mean, ela_std, edge_d, chroma)
     label = "Real" if score >= 0.5 else "Fake"
 
-    # Generate heatmap based on mode
+    # Generate heatmap and metrics
     if mode == "advanced":
-        heatmap_url = generate_advanced_heatmap(pil_img)
+        heatmap_url, metrics = generate_advanced_heatmap(pil_img)
         if heatmap_url is None:
             heatmap_url = generate_basic_heatmap(pil_img, ela_img)
+            metrics = {}
     else:
         heatmap_url = generate_basic_heatmap(pil_img, ela_img)
+        metrics = {
+            "ELA Mean": round(ela_mean, 4),
+            "ELA StdDev": round(ela_std, 4),
+            "Edge Density": round(edge_d, 4),
+            "Chroma Anomaly": round(chroma, 4),
+            "Tamper Confidence": round(score, 4),
+        }
 
     return {
+        "status": "success",
         "score": round(score, 4),
         "label": label,
         "mode": mode,
-        "features": {
-            "ela_mean": round(ela_mean, 4),
-            "ela_std": round(ela_std, 4),
-            "edge_density": round(edge_d, 4),
-            "chroma_anomaly": round(chroma, 4),
-        },
         "heatmap": heatmap_url,
+        "metrics": metrics,
     }
 
 

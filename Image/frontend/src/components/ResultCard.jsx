@@ -21,14 +21,11 @@ const ResultCard = ({ file, result }) => {
   const uploadedImage = file ? URL.createObjectURL(file) : null;
 
   const radarData = useMemo(() => {
-    return [
-      { metric: "Noise Analysis", confidence: Math.random() * 100 },
-      { metric: "JPEG Artifacts", confidence: Math.random() * 100 },
-      { metric: "Color Inconsistency", confidence: Math.random() * 100 },
-      { metric: "Edge Discontinuity", confidence: Math.random() * 100 },
-      { metric: "Lighting Mismatch", confidence: Math.random() * 100 },
-      { metric: "Shadow Irregularity", confidence: Math.random() * 100 },
-    ];
+    if (!result?.metrics) return [];
+    return Object.entries(result.metrics).map(([metric, confidence]) => ({
+      metric,
+      confidence
+    }));
   }, [result]);
 
   const handleAdvancedHeatmap = async () => {
