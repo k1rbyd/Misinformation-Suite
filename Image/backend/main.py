@@ -155,6 +155,9 @@ async def analyze_image(file: UploadFile = File(...), mode: str = Query("basic",
     score = compute_score(ela_mean, ela_std, edge_d, chroma)
     label = "Real" if score >= 0.5 else "Fake"
 
+    # change here
+
+
     # Generate heatmap and metrics
     if mode == "advanced":
         heatmap_url, metrics = generate_advanced_heatmap(pil_img)
