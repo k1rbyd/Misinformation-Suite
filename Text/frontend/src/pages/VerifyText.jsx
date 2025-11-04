@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Bot, User } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-
+import Navbar from "../components/Navbar";
 
 const VerifyText = () => {
   const [input, setInput] = useState("");
@@ -70,9 +70,7 @@ const VerifyText = () => {
   return (
     <div className="flex flex-col h-screen bg-[#0d0d0d] text-white">
       {/* Header */}
-      <header className="px-6 py-4 border-b border-gray-800 text-lg font-semibold text-gray-300">
-        Multiguard
-      </header>
+      <Navbar />
 
       {/* Chat Window */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-10 py-6 space-y-6 custom-scrollbar">
@@ -188,11 +186,15 @@ const VerifyText = () => {
               </motion.svg>
             </button>
           </div>
-
-          <p className="text-center text-xs text-gray-600 mt-2">
+        </div>
+        <footer className="border-t border-gray-800 py-4 text-center text-xs text-gray-600">
+          <p className="mb-1">
             AI may occasionally be incorrect. Verify from reliable sources.
           </p>
-        </div>
+          <p className="text-gray-700">
+            © {new Date().getFullYear()} MultiGuard | Text Authenticity Verifier
+          </p>
+        </footer>
       </div>
     );
 
